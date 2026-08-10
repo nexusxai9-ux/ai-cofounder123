@@ -1,0 +1,6 @@
+{
+  "name": "AI Co-Founder Assistant",
+  "description": "A voice and chat-based co-founder assistant for startups, enabling live market research, competitor analysis, lead generation, Gmail outreach, and Google Calendar scheduling.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
