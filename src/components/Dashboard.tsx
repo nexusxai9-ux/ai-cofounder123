@@ -44,10 +44,7 @@ import {
   TrendingUp,
   Sun,
   Moon,
-  Key,
-  Settings,
-  Shield,
-  X
+  Settings
 } from "lucide-react";
 
 interface DashboardProps {
@@ -125,22 +122,9 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
     localStorage.setItem("co_founder_startup_description", startupDescription);
   }, [startupDescription]);
 
-  // User Custom Gemini API Key State (Bring Your Own Key)
-  const [userGeminiKey, setUserGeminiKey] = useState(() => localStorage.getItem("custom_gemini_api_key") || "");
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem("custom_gemini_api_key", userGeminiKey);
-  }, [userGeminiKey]);
-
-  // Helper to build headers with custom Gemini API key if present
+  // Helper to build headers for backend API requests
   const getApiHeaders = () => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const customKey = userGeminiKey.trim() || localStorage.getItem("custom_gemini_api_key") || "";
-    if (customKey) {
-      headers["x-gemini-api-key"] = customKey;
-    }
-    return headers;
+    return { "Content-Type": "application/json" };
   };
 
   // Capital & Valuation Simulator State (Next-Level Startup Sandbox)
@@ -1227,21 +1211,9 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
               </div>
             )}
             <div className="hidden sm:block text-right">
-              <p className="text-xs font-bold text-stone-900 dark:text-slate-100 leading-none">{user?.displayName || "Guest Founder"}</p>
-              <p className="text-[10px] text-stone-400 dark:text-slate-400 font-medium mt-0.5">{user?.email || "guest@sandbox.net"}</p>
+              <p className="text-xs font-bold text-stone-900 dark:text-slate-100 leading-none">{user?.displayName || "Founder Workspace"}</p>
+              <p className="text-[10px] text-stone-400 dark:text-slate-400 font-medium mt-0.5">{user?.email || "active@co-founder.ai"}</p>
             </div>
-            <button
-              onClick={() => setIsKeyModalOpen(true)}
-              title="Configure Custom Gemini API Key"
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                userGeminiKey.trim() 
-                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" 
-                  : "bg-stone-50 dark:bg-slate-800 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-700 hover:border-emerald-500/50"
-              }`}
-            >
-              <Key className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">{userGeminiKey.trim() ? "Key Connected" : "BYO API Key"}</span>
-            </button>
 
             <button
               onClick={toggleTheme}
@@ -2518,75 +2490,6 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
           </div>
         </div>
       </div>
-
-      {/* Custom Gemini API Key Modal */}
-      {isKeyModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200/80 dark:border-slate-800 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-stone-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 rounded-xl">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-stone-900 dark:text-slate-100">Bring Your Own Gemini API Key</h3>
-                  <p className="text-[11px] text-stone-400 dark:text-slate-400">Use your personal Google AI Studio Key</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsKeyModalOpen(false)}
-                className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-slate-200 rounded-xl hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-                Enter your custom Gemini API key from Google AI Studio. When active, all chats, market intelligence, competitor scans, and lead generation queries will use your personal quota.
-              </p>
-
-              <div>
-                <label className="block text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-1.5">
-                  Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  value={userGeminiKey}
-                  onChange={(e) => setUserGeminiKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full bg-stone-50 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-stone-800 dark:text-slate-100 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-600"
-                />
-              </div>
-
-              <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/50 rounded-xl p-3 flex items-start space-x-2 text-[11px] text-emerald-800 dark:text-emerald-300">
-                <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <span>Your API key is stored locally in your browser session and transmitted directly to backend Gemini proxy headers.</span>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 pt-2">
-              {userGeminiKey.trim() && (
-                <button
-                  onClick={() => {
-                    setUserGeminiKey("");
-                    localStorage.removeItem("custom_gemini_api_key");
-                  }}
-                  className="px-4 py-2.5 bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  Clear Key
-                </button>
-              )}
-              <button
-                onClick={() => setIsKeyModalOpen(false)}
-                className="flex-1 py-2.5 bg-[#1c1917] hover:bg-stone-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-              >
-                Save & Apply Key
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
