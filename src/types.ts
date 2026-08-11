@@ -2,6 +2,8 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface Lead {
@@ -12,6 +14,7 @@ export interface Lead {
   role: string;
   email: string;
   reason: string;
+  emailStatus?: "verified" | "pattern_matched" | "corporate_domain";
   emailed?: boolean;
   pipelineStatus?: "identified" | "drafted" | "sent" | "booked";
 }
@@ -21,14 +24,25 @@ export interface MarketTrend {
   description: string;
 }
 
+export interface DeepResearchPage {
+  pageNumber: number;
+  title: string;
+  subtitle: string;
+  contentMarkdown: string;
+  keyDataPoints: { label: string; value: string; detail?: string }[];
+  strategicTakeaways: string[];
+}
+
 export interface MarketReport {
-  marketName: string;
+  topic: string;
+  marketName: string; // Backward compatibility
   summary: string;
-  marketSize: string;
-  keyTrends: MarketTrend[];
-  targetAudience: string;
-  challenges: string[];
-  opportunities: string[];
+  brandTitle: string;
+  generatedDate: string;
+  totalPages: number;
+  page1: DeepResearchPage;
+  page2: DeepResearchPage;
+  page3: DeepResearchPage;
   sources: string[];
 }
 
@@ -55,3 +69,25 @@ export interface Task {
   agentName?: string;
   createdAt: string;
 }
+
+export interface CustomFirebaseConfig {
+  projectId: string;
+  appId: string;
+  apiKey: string;
+  authDomain: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  oAuthClientId?: string;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: Message[];
+  marketReport?: MarketReport | null;
+  competitorAnalysis?: CompetitorAnalysis | null;
+  leads?: Lead[];
+  tasks?: Task[];
+}
+

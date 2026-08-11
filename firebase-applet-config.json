@@ -1,11 +1,12 @@
 {
-  "projectId": "total-truck-2pt51",
-  "appId": "1:509561099966:web:d4c61e28a1f616d82170ef",
-  "apiKey": "AIzaSyBv04bioNfyRWUyJ5TSPTNphrLyK45IDe8",
-  "authDomain": "total-truck-2pt51.firebaseapp.com",
-  "storageBucket": "total-truck-2pt51.firebasestorage.app",
-  "messagingSenderId": "509561099966",
+  "projectId": "cofounderai-4d430",
+  "appId": "1:527233426600:web:d914db9cdffeaa13134e9d",
+  "apiKey": "AIzaSyAQ_UUR9PMnSdUH1UwsfKzltznyhEA7JZ4",
+  "authDomain": "cofounderai-4d430.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "cofounderai-4d430.firebasestorage.app",
+  "messagingSenderId": "527233426600",
   "measurementId": "",
-  "oAuthClientId": "509561099966-31qlva1q008akbbfrrmnofeie5bhoe4r.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

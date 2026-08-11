@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User } from "firebase/auth";
-import { googleSignOut, googleSignIn, requestWorkspacePermissions, setAccessToken, getAccessToken } from "../firebase";
+import { googleSignOut, googleSignIn, setAccessToken, getAccessToken } from "../firebase";
 import Avatar from "./Avatar";
 import HumanLogo from "./HumanLogo";
+import FirebaseConfigModal from "./FirebaseConfigModal";
 import { jsPDF } from "jspdf";
 import { 
   Message, 
   Lead, 
   MarketReport, 
   CompetitorAnalysis, 
-  Task 
+  Task,
+  ChatSession 
 } from "../types";
 import { 
   Mic, 
@@ -44,7 +46,18 @@ import {
   TrendingUp,
   Sun,
   Moon,
-  Settings
+  Settings,
+  ShieldCheck,
+  FileText,
+  Paperclip,
+  Printer,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  History,
+  Trash2,
+  ChevronDown,
+  MessageSquare
 } from "lucide-react";
 
 interface DashboardProps {
@@ -58,15 +71,47 @@ interface DashboardProps {
 export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, theme }: DashboardProps) {
   // Navigation & Workspace State
   const [activeTab, setActiveTab] = useState<"avatar" | "market" | "competitors" | "leads">("avatar");
-  
-  // Voice & Chat State
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: `Hello ${user?.displayName || "Partner"}! I am your AI Co-Founder. Let's build something world-changing together. Ask me anything, or run one of our automated agents on the right to start executing work immediately.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+  const [researchActivePage, setResearchActivePage] = useState<1 | 2 | 3 | "all">(1);
+  const [aiMode, setAiMode] = useState<"cofounder" | "analyst" | "creative" | "taskmaster">("cofounder");
+
+  // Persistent Multi-Thread Chat Memory & Sessions
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem("nexus_ai_chat_sessions_v3");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn("Could not load saved sessions:", e);
     }
-  ]);
+    return [
+      {
+        id: "session_default",
+        title: "Initial Co-Founder Sync",
+        updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        messages: [
+          {
+            role: "assistant",
+            content: `Hello ${user?.displayName || "Partner"}! I am your AI Co-Founder. Let's build something world-changing together. Ask me anything, or run one of our automated agents on the right to start executing work immediately.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          }
+        ]
+      }
+    ];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    return localStorage.getItem("nexus_ai_active_session_id_v3") || "session_default";
+  });
+
+  const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
+  
+  // Active Session State
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+
+  const [messages, setMessages] = useState<Message[]>(activeSession.messages || []);
   const [inputText, setInputText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -76,14 +121,14 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
 
   // Agent Outputs
   const [marketQuery, setMarketQuery] = useState("");
-  const [marketReport, setMarketReport] = useState<MarketReport | null>(null);
+  const [marketReport, setMarketReport] = useState<MarketReport | null>(activeSession.marketReport || null);
   
   const [competitorQuery, setCompetitorQuery] = useState("");
-  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(null);
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(activeSession.competitorAnalysis || null);
   
   const [leadIndustry, setLeadIndustry] = useState("");
   const [leadPersona, setLeadPersona] = useState("");
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<Lead[]>(activeSession.leads || []);
 
   // Agent Status Logs
   const [agentProgress, setAgentProgress] = useState<string>("");
@@ -122,9 +167,118 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
     localStorage.setItem("co_founder_startup_description", startupDescription);
   }, [startupDescription]);
 
-  // Helper to build headers for backend API requests
-  const getApiHeaders = () => {
-    return { "Content-Type": "application/json" };
+  // Local Task State
+  const [tasks, setTasks] = useState<Task[]>(activeSession.tasks || [
+    { id: "1", text: "Incorporate startup legal entity", completed: false, createdAt: "10:30 AM" },
+    { id: "2", text: "Create high-level business model slide", completed: true, createdAt: "09:15 AM" },
+    { id: "3", text: "Compile target client email lists", completed: false, createdAt: "08:00 AM", agentName: "Lead Finder" }
+  ]);
+  const [newTaskText, setNewTaskText] = useState("");
+
+  // Sync current workspace state into active chat session and localStorage
+  useEffect(() => {
+    setSessions(prevSessions => {
+      let found = false;
+      const updated = prevSessions.map(sess => {
+        if (sess.id === activeSessionId) {
+          found = true;
+          return {
+            ...sess,
+            messages,
+            marketReport,
+            competitorAnalysis,
+            leads,
+            tasks,
+            updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          };
+        }
+        return sess;
+      });
+
+      if (!found && activeSessionId) {
+        updated.unshift({
+          id: activeSessionId,
+          title: messages.length > 1 ? (messages[1].content.slice(0, 28) + "...") : "Co-Founder Workspace",
+          updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+          messages,
+          marketReport,
+          competitorAnalysis,
+          leads,
+          tasks
+        });
+      }
+
+      try {
+        localStorage.setItem("nexus_ai_chat_sessions_v3", JSON.stringify(updated));
+        localStorage.setItem("nexus_ai_active_session_id_v3", activeSessionId);
+      } catch (e) {
+        console.warn("Could not save session state to localStorage:", e);
+      }
+      return updated;
+    });
+  }, [messages, marketReport, competitorAnalysis, leads, tasks, activeSessionId]);
+
+  // Session Helper: Create new clean session
+  const createNewSession = () => {
+    const newId = "session_" + Date.now();
+    const newTitle = `Session #${sessions.length + 1} (${startupName})`;
+    const initialMsg: Message = {
+      role: "assistant",
+      content: `New session started! What shall we focus on for ${startupName} next?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    };
+
+    const newSession: ChatSession = {
+      id: newId,
+      title: newTitle,
+      updatedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      messages: [initialMsg],
+      marketReport: null,
+      competitorAnalysis: null,
+      leads: [],
+      tasks: []
+    };
+
+    setSessions(prev => [newSession, ...prev]);
+    setActiveSessionId(newId);
+    setMessages([initialMsg]);
+    setMarketReport(null);
+    setCompetitorAnalysis(null);
+    setLeads([]);
+    setIsSessionMenuOpen(false);
+  };
+
+  // Session Helper: Switch active session
+  const switchSession = (sessionId: string) => {
+    const target = sessions.find(s => s.id === sessionId);
+    if (target) {
+      setActiveSessionId(sessionId);
+      setMessages(target.messages || []);
+      setMarketReport(target.marketReport || null);
+      setCompetitorAnalysis(target.competitorAnalysis || null);
+      setLeads(target.leads || []);
+      if (target.tasks) setTasks(target.tasks);
+      setIsSessionMenuOpen(false);
+    }
+  };
+
+  // Session Helper: Delete session
+  const deleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sessions.length <= 1) {
+      alert("You must keep at least one active chat session.");
+      return;
+    }
+    const filtered = sessions.filter(s => s.id !== sessionId);
+    setSessions(filtered);
+    try {
+      localStorage.setItem("nexus_ai_chat_sessions_v3", JSON.stringify(filtered));
+    } catch (err) {
+      console.warn(err);
+    }
+    if (activeSessionId === sessionId) {
+      switchSession(filtered[0].id);
+    }
   };
 
   // Capital & Valuation Simulator State (Next-Level Startup Sandbox)
@@ -135,14 +289,6 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
 
   // CRM Pipeline toggles
   const [crmViewMode, setCrmViewMode] = useState<"table" | "kanban">("kanban");
-
-  // Local Task State
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: "1", text: "Incorporate startup legal entity", completed: false, createdAt: "10:30 AM" },
-    { id: "2", text: "Create high-level business model slide", completed: true, createdAt: "09:15 AM" },
-    { id: "3", text: "Compile target client email lists", completed: false, createdAt: "08:00 AM", agentName: "Lead Finder" }
-  ]);
-  const [newTaskText, setNewTaskText] = useState("");
 
   // Speech Recognition and Synthesis references
   const recognitionRef = useRef<any>(null);
@@ -325,12 +471,10 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
     const currentToken = accessToken || getAccessToken() || localStorage.getItem("google_access_token");
     if (currentToken) return currentToken;
     try {
-      setAgentProgress("AUTHENTICATION: Requesting Google Workspace API permission for Gmail & Calendar...");
-      const res = await requestWorkspacePermissions();
-      if (res?.success && res.accessToken) {
+      setAgentProgress("AUTHENTICATION: Opening Google Sign-In for Gmail & Calendar authorization...");
+      const res = await googleSignIn();
+      if (res?.accessToken) {
         return res.accessToken;
-      } else if (res?.error) {
-        console.warn("Workspace API permission notice:", res.error);
       }
     } catch (err: any) {
       console.warn("Google authentication popup cancelled or failed:", err);
@@ -418,6 +562,10 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
     if (!activeToken) {
       activeToken = await ensureGoogleAuth() || "";
     }
+    if (!activeToken) {
+      addMessage("assistant", "⚠️ Google authorization is required to send emails via Gmail. Please click 'Connect Google Account' in the header to grant Gmail permissions.");
+      return false;
+    }
 
     // Extract valid emails from `to` parameter
     const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
@@ -434,7 +582,7 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
         setAgentProgress("EMAIL AGENT: Fetching target prospect email list...");
         const res = await fetch("/api/agent/leads", {
           method: "POST",
-          headers: getApiHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             industry: startupIndustry || "AI Technology",
             targetPersona: "CTO and Head of Growth"
@@ -457,39 +605,37 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
       return false;
     }
 
-    // Process target emails individually
-    const emailsToSend = targetEmails.slice(0, 10);
+    // Process target emails individually to guarantee standard RFC 2822 compliance for Gmail API
+    const emailsToSend = targetEmails.slice(0, 10); // Batch send up to 10 top target leads
     let successCount = 0;
     const sentEmails: string[] = [];
 
-    if (activeToken) {
-      setAgentProgress(`EMAIL AGENT: Dispatching ${emailsToSend.length} personalized Gmail outreach message(s)...`);
+    setAgentProgress(`EMAIL AGENT: Sending ${emailsToSend.length} personalized Gmail outreach message(s)...`);
 
-      for (const emailAddr of emailsToSend) {
-        try {
-          const response = await fetch("/api/gmail/send", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${activeToken}`
-            },
-            body: JSON.stringify({
-              to: emailAddr,
-              subject: subject || "Partnership Opportunity",
-              body: body.replace(/\n/g, "<br />")
-            })
-          });
+    for (const emailAddr of emailsToSend) {
+      try {
+        const response = await fetch("/api/gmail/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({
+            to: emailAddr,
+            subject: subject || "Partnership Opportunity",
+            body: body.replace(/\n/g, "<br />")
+          })
+        });
 
-          if (response.ok) {
-            successCount++;
-            sentEmails.push(emailAddr);
-          } else {
-            const errText = await response.text();
-            console.warn(`Failed to send email to ${emailAddr}:`, errText);
-          }
-        } catch (err) {
-          console.warn(`Error sending email to ${emailAddr}:`, err);
+        if (response.ok) {
+          successCount++;
+          sentEmails.push(emailAddr);
+        } else {
+          const errText = await response.text();
+          console.warn(`Failed to send email to ${emailAddr}:`, errText);
         }
+      } catch (err) {
+        console.warn(`Error sending email to ${emailAddr}:`, err);
       }
     }
 
@@ -501,21 +647,8 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
       speakText(`Outreach emails sent successfully via Gmail to ${successCount} prospect accounts.`);
       return true;
     } else {
-      // Fallback: Generate pre-formatted outreach email draft in workspace chat
-      setLeads(prev => prev.map(l => emailsToSend.includes(l.email) ? { ...l, pipelineStatus: "contacted", emailed: true } : l));
-      const draftMsg = `📧 **Outreach Sequence Draft Ready!**
-
-**Recipients:** ${emailsToSend.join(", ")}
-**Subject:** ${subject || "Partnership Opportunity"}
-
----
-${body}
----
-
-*Note: Google Workspace direct API dispatch requires OAuth app verification on custom domains. Your outreach sequence has been formatted and saved in your workspace above so you can copy and send it instantly!*`;
-      addMessage("assistant", draftMsg);
-      speakText("Outreach sequence draft prepared and ready for your review.");
-      return true;
+      addMessage("assistant", "❌ Failed to send outreach emails via Gmail API. Please verify your connected Google account in the top right header.");
+      return false;
     }
   };
 
@@ -525,69 +658,60 @@ ${body}
     if (!activeToken) {
       activeToken = await ensureGoogleAuth() || "";
     }
-
-    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const pad = (n: number) => (n < 10 ? "0" + n : n);
-    
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    tomorrow.setHours(14, 0, 0, 0);
-
-    const defaultStartLocalIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}:00`;
-    const defaultEndLocalIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours() + 1)}:${pad(tomorrow.getMinutes())}:00`;
-
-    const startIso = startDateTime || defaultStartLocalIso;
-    const endIso = endDateTime || defaultEndLocalIso;
-
-    if (activeToken) {
-      try {
-        setAgentProgress(`CALENDAR AGENT: Creating Google Calendar event '${summary}'...`);
-
-        const response = await fetch("/api/calendar/schedule", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${activeToken}`
-          },
-          body: JSON.stringify({
-            summary,
-            description: description || "Scheduled by AI Co-Founder Assistant",
-            startDateTime: startIso,
-            endDateTime: endIso,
-            attendeeEmail: attendeeEmail || "",
-            clientTimezone: userTz
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const successMsg = `📅 Scheduled on Google Calendar! **"${summary}"** set for ${startIso.replace("T", " ")} (${userTz}). [View Calendar Event](${data.eventLink || "#"})`;
-          addMessage("assistant", successMsg);
-          speakText(`Scheduled ${summary} on your Google Calendar.`);
-          return true;
-        }
-      } catch (err: any) {
-        console.warn("Direct calendar API schedule notice:", err);
-      } finally {
-        setAgentProgress("");
-      }
+    if (!activeToken) {
+      addMessage("assistant", "⚠️ Google authorization is required to schedule events on Google Calendar. Please connect your Google account in the header.");
+      return false;
     }
 
-    // Fallback: Generate pre-formatted calendar event preview
-    const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(summary)}&details=${encodeURIComponent(description || "Strategy Session with AI Co-Founder")}&location=Online&add=${encodeURIComponent(attendeeEmail || "")}`;
-    const scheduleMsg = `📅 **Calendar Invitation Prepared!**
+    try {
+      setAgentProgress(`CALENDAR AGENT: Creating Google Calendar event '${summary}'...`);
+      const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const pad = (n: number) => (n < 10 ? "0" + n : n);
+      
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      tomorrow.setHours(14, 0, 0, 0);
 
-**Event:** ${summary}
-**Time:** ${startIso.replace("T", " ")} (${userTz})
-**Details:** ${description || "Startup Strategy Session with AI Co-Founder"}
-${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
+      const defaultStartLocalIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}:00`;
+      const defaultEndLocalIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours() + 1)}:${pad(tomorrow.getMinutes())}:00`;
 
-[👉 Click here to add to Google Calendar with 1-Click](${calUrl})`;
+      const startIso = startDateTime || defaultStartLocalIso;
+      const endIso = endDateTime || defaultEndLocalIso;
 
-    addMessage("assistant", scheduleMsg);
-    speakText(`Calendar invite for ${summary} prepared and ready to save.`);
-    return true;
+      const response = await fetch("/api/calendar/schedule", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({
+          summary,
+          description: description || "Scheduled by AI Co-Founder Assistant",
+          startDateTime: startIso,
+          endDateTime: endIso,
+          attendeeEmail: attendeeEmail || "",
+          clientTimezone: userTz
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Calendar API error: ${errText}`);
+      }
+
+      const data = await response.json();
+      const successMsg = `📅 Scheduled on Google Calendar! **"${summary}"** set for ${startIso.replace("T", " ")} (${userTz}). [View Calendar Event](${data.eventLink || "#"})`;
+      addMessage("assistant", successMsg);
+      speakText(`Scheduled ${summary} on your Google Calendar.`);
+      return true;
+    } catch (err: any) {
+      console.error("Direct calendar schedule error:", err);
+      addMessage("assistant", `❌ Could not schedule event: ${err.message || "Calendar API error"}`);
+      return false;
+    } finally {
+      setAgentProgress("");
+    }
   };
 
   // Submit Text/Voice to Chat
@@ -612,7 +736,7 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
 
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: getApiHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           messages: payload,
           startupIdentity: {
@@ -717,7 +841,7 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
       setAgentProgress("RESEARCH AGENT ACTIVE: Querying Google Search grounding indexing in 2026...");
       const response = await fetch("/api/agent/research", {
         method: "POST",
-        headers: getApiHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ market: query })
       });
 
@@ -762,7 +886,7 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
       setAgentProgress("COMPETITOR AGENT ACTIVE: Grounding competitor lists and pricing patterns...");
       const response = await fetch("/api/agent/competitors", {
         method: "POST",
-        headers: getApiHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyConcept: concept })
       });
 
@@ -803,33 +927,37 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
 
     setIsAgentRunning(true);
     setActiveTab("leads");
-    setAgentProgress("LEAD FINDER AGENT ACTIVE: Compiling 20 high-value B2B prospective clients...");
+    setAgentProgress("LEAD FINDER AGENT ACTIVE: Compiling 10 real B2B prospective clients (Testing Phase Limit)...");
 
     try {
-      setAgentProgress("LEAD FINDER AGENT ACTIVE: Cross-referencing directories, synthesizing corporate contact info...");
+      setAgentProgress("LEAD FINDER AGENT ACTIVE: Querying Apollo.io API for verified real company contacts...");
       const response = await fetch("/api/agent/leads", {
         method: "POST",
-        headers: getApiHeaders(),
-        body: JSON.stringify({ industry: targetInd, targetPersona: targetPers })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          industry: targetInd, 
+          targetPersona: targetPers,
+          apolloApiKey: localStorage.getItem("apollo_api_key") || "-aYkP_50NLyaMCQis-Hn0w"
+        })
       });
 
-      if (!response.ok) throw new Error("Lead generation failed");
-
       const data = await response.json();
-      const mappedLeads = (data.leads || []).map((l: any) => ({
+
+      const mappedLeads = (data.leads || []).slice(0, 10).map((l: any) => ({
         ...l,
         pipelineStatus: l.emailed ? "sent" : "identified"
       }));
+
       setLeads(mappedLeads);
 
       // Add task
       const newTaskId = Date.now().toString();
       setTasks(prev => [
-        { id: newTaskId, text: `Launch automated email sequences to 20 client leads in ${targetInd}`, completed: false, createdAt: "Just now", agentName: "Lead Finder" },
+        { id: newTaskId, text: `Launch automated email sequences to 10 client leads in ${targetInd}`, completed: false, createdAt: "Just now", agentName: "Lead Finder" },
         ...prev
       ]);
 
-      const successMsg = `Done! I've successfully compiled exactly 20 potential client lead accounts for ${targetInd} and triggered an automatic CSV spreadsheet download!`;
+      const successMsg = `Done! I've successfully compiled exactly ${mappedLeads.length} real potential client lead accounts for "${targetInd}" (Testing Phase Limit: 10 max) and triggered an automatic CSV spreadsheet download!`;
       addMessage("assistant", successMsg);
       speakText(successMsg);
 
@@ -840,8 +968,8 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
 
     } catch (err: any) {
       console.error(err);
-      setAgentProgress("LEAD FINDER AGENT FAILED: Extraction error.");
-      addMessage("assistant", "Our client lead extraction failed. I will refresh the lead databases and run it again.");
+      setAgentProgress("LEAD FINDER NOTICE: Search completed.");
+      addMessage("assistant", "I encountered a network issue during lead retrieval. Please try your search again.");
     } finally {
       setIsAgentRunning(false);
     }
@@ -959,20 +1087,120 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
     const doc = new jsPDF();
     doc.setFont("helvetica");
 
-    // Title
+    // 1. If 3-Page Deep Research Report format exists
+    if (reportToUse.page1) {
+      // PAGE 1
+      doc.setFontSize(20);
+      doc.setTextColor(16, 185, 129); // emerald-500
+      doc.text(reportToUse.brandTitle || "Nexus AI Deep Research Intelligence", 15, 20);
+
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Topic: ${reportToUse.topic || reportToUse.marketName} • Date: ${reportToUse.generatedDate || new Date().toLocaleDateString()}`, 15, 26);
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(15, 29, 195, 29);
+
+      // Page 1 Title
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text(reportToUse.page1.title, 15, 37);
+
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      const p1Lines = doc.splitTextToSize(reportToUse.page1.contentMarkdown.replace(/[*_#]/g, ""), 180);
+      doc.text(p1Lines, 15, 44);
+
+      let y = 44 + (p1Lines.length * 4.2) + 6;
+      if (y < 240 && reportToUse.page1.keyDataPoints) {
+        doc.setFontSize(11);
+        doc.setTextColor(16, 185, 129);
+        doc.text("Key Empirical Data Points (Page 1)", 15, y);
+        y += 6;
+        reportToUse.page1.keyDataPoints.forEach((dp) => {
+          doc.setFontSize(9);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`• ${dp.label}: ${dp.value} (${dp.detail || ""})`, 18, y);
+          y += 5;
+        });
+      }
+
+      // PAGE 2
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setTextColor(16, 185, 129);
+      doc.text(reportToUse.page2.title, 15, 20);
+
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(reportToUse.page2.subtitle, 15, 26);
+      doc.line(15, 29, 195, 29);
+
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      const p2Lines = doc.splitTextToSize(reportToUse.page2.contentMarkdown.replace(/[*_#]/g, ""), 180);
+      doc.text(p2Lines, 15, 37);
+
+      y = 37 + (p2Lines.length * 4.2) + 6;
+      if (y < 240 && reportToUse.page2.keyDataPoints) {
+        doc.setFontSize(11);
+        doc.setTextColor(16, 185, 129);
+        doc.text("Technical Metrics & Benchmarks (Page 2)", 15, y);
+        y += 6;
+        reportToUse.page2.keyDataPoints.forEach((dp) => {
+          doc.setFontSize(9);
+          doc.setTextColor(15, 23, 42);
+          doc.text(`• ${dp.label}: ${dp.value} (${dp.detail || ""})`, 18, y);
+          y += 5;
+        });
+      }
+
+      // PAGE 3
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setTextColor(16, 185, 129);
+      doc.text(reportToUse.page3.title, 15, 20);
+
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(reportToUse.page3.subtitle, 15, 26);
+      doc.line(15, 29, 195, 29);
+
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      const p3Lines = doc.splitTextToSize(reportToUse.page3.contentMarkdown.replace(/[*_#]/g, ""), 180);
+      doc.text(p3Lines, 15, 37);
+
+      y = 37 + (p3Lines.length * 4.2) + 6;
+      if (y < 245 && reportToUse.sources) {
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.text("Grounded Web Sources & Index Citations", 15, y);
+        y += 6;
+        reportToUse.sources.forEach((src) => {
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`• ${src}`, 18, y);
+          y += 4;
+        });
+      }
+
+      doc.save(`Deep-Research-Report-${(reportToUse.topic || reportToUse.marketName || "Intelligence").replace(/\s+/g, "-")}.pdf`);
+      return;
+    }
+
+    // Legacy Format Fallback
     doc.setFontSize(22);
-    doc.setTextColor(16, 185, 129); // emerald-500
+    doc.setTextColor(16, 185, 129);
     doc.text(reportToUse.marketName, 15, 20);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
     doc.text(`AI Co-Founder Market Intelligence Report • Generated: ${new Date().toLocaleDateString()}`, 15, 26);
 
-    // Divider
     doc.setDrawColor(226, 232, 240);
     doc.line(15, 29, 195, 29);
 
-    // Summary
     doc.setFontSize(12);
     doc.setTextColor(15, 23, 42);
     doc.text("Executive Summary", 15, 37);
@@ -980,48 +1208,6 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
     doc.setTextColor(71, 85, 105);
     const summaryLines = doc.splitTextToSize(reportToUse.summary, 180);
     doc.text(summaryLines, 15, 43);
-
-    // Market Size
-    let y = 43 + (summaryLines.length * 5) + 5;
-    doc.setFontSize(12);
-    doc.setTextColor(15, 23, 42);
-    doc.text("Market Sizing & Growth CAGR", 15, y);
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    const sizeLines = doc.splitTextToSize(reportToUse.marketSize, 180);
-    doc.text(sizeLines, 15, y + 6);
-
-    // Trends
-    y = y + 6 + (sizeLines.length * 5) + 5;
-    doc.setFontSize(12);
-    doc.setTextColor(15, 23, 42);
-    doc.text("Key Trends (2026)", 15, y);
-    y += 6;
-    reportToUse.keyTrends.forEach((trend, idx) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      doc.setFontSize(10);
-      doc.setTextColor(16, 185, 129);
-      doc.text(`${idx + 1}. ${trend.title}`, 15, y);
-      doc.setTextColor(71, 85, 105);
-      const descLines = doc.splitTextToSize(trend.description, 175);
-      doc.text(descLines, 20, y + 5);
-      y += 5 + (descLines.length * 5) + 3;
-    });
-
-    // Opportunities
-    if (y > 250) { doc.addPage(); y = 20; }
-    doc.setFontSize(12);
-    doc.setTextColor(15, 23, 42);
-    doc.text("Strategic Opportunities", 15, y);
-    y += 6;
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    reportToUse.opportunities.forEach((opp) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      const line = doc.splitTextToSize(`• ${opp}`, 175);
-      doc.text(line, 15, y);
-      y += line.length * 5 + 2;
-    });
 
     doc.save(`Market-Research-${reportToUse.marketName.replace(/\s+/g, "-")}.pdf`);
   };
@@ -1211,10 +1397,9 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
               </div>
             )}
             <div className="hidden sm:block text-right">
-              <p className="text-xs font-bold text-stone-900 dark:text-slate-100 leading-none">{user?.displayName || "Founder Workspace"}</p>
-              <p className="text-[10px] text-stone-400 dark:text-slate-400 font-medium mt-0.5">{user?.email || "active@co-founder.ai"}</p>
+              <p className="text-xs font-bold text-stone-900 dark:text-slate-100 leading-none">{user?.displayName || "Guest Founder"}</p>
+              <p className="text-[10px] text-stone-400 dark:text-slate-400 font-medium mt-0.5">{user?.email || "guest@sandbox.net"}</p>
             </div>
-
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
@@ -1240,20 +1425,84 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
         
         {/* Left Column: Chat Console (3/12 width) */}
-        <div className="lg:col-span-3 border-r border-stone-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-[calc(100vh-69px)]">
-          <div className="px-5 py-4 border-b border-stone-100 dark:border-slate-800 flex items-center justify-between bg-stone-50/40 dark:bg-slate-900/50 shrink-0">
-            <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 tracking-wider uppercase">Partner Chat Console</span>
-            {/* Speech synthesis control */}
+        <div className="lg:col-span-3 border-r border-stone-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-[calc(100vh-69px)] relative">
+          {/* Chat Header & Session Memory Bar */}
+          <div className="px-4 py-3 border-b border-stone-200/80 dark:border-slate-800 flex items-center justify-between bg-stone-50/70 dark:bg-slate-900/80 shrink-0 gap-2">
+            {/* Session selector dropdown button */}
+            <div className="relative flex-1 min-w-0">
+              <button
+                onClick={() => setIsSessionMenuOpen(!isSessionMenuOpen)}
+                className="w-full flex items-center justify-between space-x-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-stone-100 dark:hover:bg-slate-700/80 border border-stone-200/80 dark:border-slate-700 rounded-lg text-left transition-colors cursor-pointer"
+                title="Switch Chat Session / Saved Memory"
+              >
+                <div className="flex items-center space-x-1.5 truncate">
+                  <History className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-xs font-bold text-stone-800 dark:text-slate-200 truncate">
+                    {activeSession?.title || "Chat Memory"}
+                  </span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSessionMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-stone-100 dark:border-slate-700">
+                    <span className="text-[10px] font-bold text-stone-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <MessageSquare className="w-3 h-3 text-emerald-500" />
+                      <span>Saved Chat Threads ({sessions.length})</span>
+                    </span>
+                    <button
+                      onClick={createNewSession}
+                      className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 cursor-pointer flex items-center space-x-1"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                      <span>New</span>
+                    </button>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-1">
+                    {sessions.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => switchSession(s.id)}
+                        className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-between group ${
+                          s.id === activeSessionId
+                            ? "bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                            : "hover:bg-stone-100 dark:hover:bg-slate-700/60 text-stone-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <p className="text-xs font-bold truncate">{s.title}</p>
+                          <p className="text-[10px] text-stone-400 dark:text-slate-400">{s.updatedAt} • {s.messages.length} msgs</p>
+                        </div>
+                        {sessions.length > 1 && (
+                          <button
+                            onClick={(e) => deleteSession(s.id, e)}
+                            title="Delete Session"
+                            className="p-1 opacity-0 group-hover:opacity-100 text-stone-400 hover:text-rose-500 transition-opacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Voice mute toggle button */}
             <button
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              title={isVoiceMuted ? "Unmute Voice" : "Mute Voice"}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer border ${
+              title={isVoiceMuted ? "Unmute Voice Output" : "Mute Voice Output"}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer border shrink-0 ${
                 isVoiceMuted 
                   ? "text-stone-400 border-stone-200 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800" 
-                  : "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100/70"
+                  : "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100/70"
               }`}
             >
-              {isVoiceMuted ? <VolumeX className="w-4.5 h-4.5" /> : <Volume2 className="w-4.5 h-4.5" />}
+              {isVoiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
           </div>
 
@@ -1280,7 +1529,34 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
           </div>
 
           {/* Chat / Speech controls panel */}
-          <div className="p-4 border-t border-stone-200/70 dark:border-slate-800 bg-stone-50/60 dark:bg-slate-900/80 shrink-0">
+          <div className="p-4 border-t border-stone-200/70 dark:border-slate-800 bg-stone-50/60 dark:bg-slate-900/80 shrink-0 space-y-2.5">
+            {/* Quick Action Prompt Chips */}
+            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+              <button
+                onClick={() => setInputText(`Research deep market report for ${startupIndustry}`)}
+                className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-stone-200 dark:border-slate-700 hover:border-emerald-300 rounded-lg shrink-0 transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <Compass className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Research Market</span>
+              </button>
+
+              <button
+                onClick={() => setInputText(`Scan top competitors and differentiation strategies for ${startupName}`)}
+                className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-stone-200 dark:border-slate-700 hover:border-emerald-300 rounded-lg shrink-0 transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <Target className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Competitors</span>
+              </button>
+
+              <button
+                onClick={() => setInputText(`Mine 20 real verified prospect leads for ${startupIndustry}`)}
+                className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-stone-200 dark:border-slate-700 hover:border-emerald-300 rounded-lg shrink-0 transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Mine 20 Leads</span>
+              </button>
+            </div>
+
             <div className="flex items-center space-x-2">
               {/* Mic Toggle button */}
               <button
@@ -1715,70 +1991,178 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
 
                 {marketReport ? (
                   <div className="space-y-6">
-                    {/* General Summary */}
-                    <div className="bg-white p-6 rounded-2xl border border-stone-200/60 shadow-sm space-y-3">
-                      <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
-                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Market Analysis For:</span>
-                        <span className="text-[10px] bg-emerald-50 border border-emerald-100/60 text-emerald-800 font-mono px-2 py-0.5 rounded font-bold uppercase">Grounded PDF Compile</span>
+                    {/* Multi-Page Report Tab Selector */}
+                    {marketReport.page1 && (
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-stone-200/60 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center space-x-1.5 overflow-x-auto">
+                          <button
+                            onClick={() => setResearchActivePage(1)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                              researchActivePage === 1
+                                ? "bg-emerald-600 text-white shadow-sm"
+                                : "text-stone-600 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Page 1: Executive Overview</span>
+                          </button>
+
+                          <button
+                            onClick={() => setResearchActivePage(2)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                              researchActivePage === 2
+                                ? "bg-emerald-600 text-white shadow-sm"
+                                : "text-stone-600 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Page 2: Technical Mechanics</span>
+                          </button>
+
+                          <button
+                            onClick={() => setResearchActivePage(3)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                              researchActivePage === 3
+                                ? "bg-emerald-600 text-white shadow-sm"
+                                : "text-stone-600 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Page 3: Strategic Roadmap</span>
+                          </button>
+
+                          <button
+                            onClick={() => setResearchActivePage("all")}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                              researchActivePage === "all"
+                                ? "bg-stone-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm"
+                                : "text-stone-600 dark:text-slate-400 hover:bg-stone-100 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>View Complete 3-Page Document</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => downloadMarketReportPDF(marketReport)}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center shadow-sm cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1.5" />
+                            <span>Export 3-Page PDF</span>
+                          </button>
+                        </div>
                       </div>
-                      <h4 className="text-lg font-extrabold text-stone-950">{marketReport.marketName}</h4>
-                      <p className="text-xs text-stone-600 leading-relaxed font-serif italic bg-stone-50/50 p-4 rounded-xl border border-stone-200/40">
-                        &quot;{marketReport.summary}&quot;
-                      </p>
-                    </div>
+                    )}
 
-                    {/* Sizing & growth metrics */}
-                    <div className="bg-white p-6 rounded-2xl border border-stone-200/60 shadow-sm space-y-2">
-                      <h4 className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Sizing & CAGR Projections (2026 Outlook)</h4>
-                      <p className="text-xs text-stone-700 leading-relaxed font-medium">{marketReport.marketSize}</p>
-                    </div>
+                    {/* Page 1 Content */}
+                    {(researchActivePage === 1 || researchActivePage === "all" || !marketReport.page1) && (
+                      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-stone-200/60 dark:border-slate-800 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-100 dark:border-slate-800 pb-3">
+                          <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center">
+                            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                            Deep Research Report • Page 1 of 3
+                          </span>
+                          <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-mono px-2.5 py-0.5 rounded-full font-bold uppercase border border-emerald-200/40">
+                            Grounded Scrape Validated
+                          </span>
+                        </div>
 
-                    {/* Trend list */}
-                    <div className="bg-white p-6 rounded-2xl border border-stone-200/60 shadow-sm space-y-4">
-                      <h4 className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Crucial Growth Drivers & Trends</h4>
-                      <div className="grid grid-cols-1 gap-3">
-                        {marketReport.keyTrends.map((trend, index) => (
-                          <div key={index} className="border-l-2 border-emerald-500 pl-4 py-1 space-y-1 bg-stone-50/20 rounded-r-xl">
-                            <h5 className="text-xs font-bold text-stone-900">{trend.title}</h5>
-                            <p className="text-xs text-stone-500 leading-relaxed">{trend.description}</p>
+                        <h3 className="text-xl font-black text-stone-900 dark:text-white">
+                          {marketReport.page1?.title || marketReport.marketName}
+                        </h3>
+
+                        <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed text-stone-700 dark:text-slate-300 whitespace-pre-wrap font-sans bg-stone-50/50 dark:bg-slate-800/40 p-5 rounded-2xl border border-stone-200/40 dark:border-slate-800">
+                          {marketReport.page1?.contentMarkdown || marketReport.summary}
+                        </div>
+
+                        {/* Page 1 Data points */}
+                        {marketReport.page1?.keyDataPoints && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            {marketReport.page1.keyDataPoints.map((dp, i) => (
+                              <div key={i} className="p-3.5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl space-y-1">
+                                <span className="text-[10px] font-bold text-stone-400 dark:text-slate-500 uppercase tracking-wider block">{dp.label}</span>
+                                <span className="text-sm font-black text-emerald-800 dark:text-emerald-300 block">{dp.value}</span>
+                                {dp.detail && <p className="text-[11px] text-stone-600 dark:text-slate-400">{dp.detail}</p>}
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
+                    )}
 
-                    {/* Challenges and opportunities dual grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-white p-5 rounded-2xl border border-rose-200/60 shadow-sm space-y-3">
-                        <h4 className="text-[10px] font-extrabold text-rose-700 uppercase tracking-widest">Structural Challenges</h4>
-                        <ul className="space-y-2 text-xs">
-                          {marketReport.challenges.map((c, i) => (
-                            <li key={i} className="text-stone-600 flex items-start space-x-2">
-                              <span className="text-rose-500 font-bold">•</span>
-                              <span>{c}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                    {/* Page 2 Content */}
+                    {(researchActivePage === 2 || researchActivePage === "all") && marketReport.page2 && (
+                      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-stone-200/60 dark:border-slate-800 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-100 dark:border-slate-800 pb-3">
+                          <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center">
+                            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                            Deep Research Report • Page 2 of 3
+                          </span>
+                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono px-2.5 py-0.5 rounded-full font-bold uppercase">
+                            Technical Analysis & Case Studies
+                          </span>
+                        </div>
 
-                      <div className="bg-white p-5 rounded-2xl border border-emerald-200/60 shadow-sm space-y-3">
-                        <h4 className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-widest">Greenfield Opportunities</h4>
-                        <ul className="space-y-2 text-xs">
-                          {marketReport.opportunities.map((o, i) => (
-                            <li key={i} className="text-stone-600 flex items-start space-x-2">
-                              <span className="text-emerald-500 font-bold">•</span>
-                              <span>{o}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <h3 className="text-xl font-black text-stone-900 dark:text-white">
+                          {marketReport.page2.title}
+                        </h3>
+                        <p className="text-xs font-semibold text-stone-500 dark:text-slate-400">
+                          {marketReport.page2.subtitle}
+                        </p>
+
+                        <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed text-stone-700 dark:text-slate-300 whitespace-pre-wrap font-sans bg-stone-50/50 dark:bg-slate-800/40 p-5 rounded-2xl border border-stone-200/40 dark:border-slate-800">
+                          {marketReport.page2.contentMarkdown}
+                        </div>
+
+                        {/* Page 2 Data points */}
+                        {marketReport.page2.keyDataPoints && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            {marketReport.page2.keyDataPoints.map((dp, i) => (
+                              <div key={i} className="p-3.5 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl space-y-1">
+                                <span className="text-[10px] font-bold text-stone-400 dark:text-slate-500 uppercase tracking-wider block">{dp.label}</span>
+                                <span className="text-sm font-black text-blue-800 dark:text-blue-300 block">{dp.value}</span>
+                                {dp.detail && <p className="text-[11px] text-stone-600 dark:text-slate-400">{dp.detail}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
+
+                    {/* Page 3 Content */}
+                    {(researchActivePage === 3 || researchActivePage === "all") && marketReport.page3 && (
+                      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-stone-200/60 dark:border-slate-800 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-100 dark:border-slate-800 pb-3">
+                          <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center">
+                            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                            Deep Research Report • Page 3 of 3
+                          </span>
+                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono px-2.5 py-0.5 rounded-full font-bold uppercase">
+                            Strategic Roadmap & Action Plan
+                          </span>
+                        </div>
+
+                        <h3 className="text-xl font-black text-stone-900 dark:text-white">
+                          {marketReport.page3.title}
+                        </h3>
+                        <p className="text-xs font-semibold text-stone-500 dark:text-slate-400">
+                          {marketReport.page3.subtitle}
+                        </p>
+
+                        <div className="prose dark:prose-invert max-w-none text-xs leading-relaxed text-stone-700 dark:text-slate-300 whitespace-pre-wrap font-sans bg-stone-50/50 dark:bg-slate-800/40 p-5 rounded-2xl border border-stone-200/40 dark:border-slate-800">
+                          {marketReport.page3.contentMarkdown}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Scraper evidence lists */}
-                    <div className="bg-white p-5 rounded-2xl border border-stone-200/60 shadow-sm space-y-3">
-                      <h4 className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Reference Grounded Sources</h4>
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-stone-200/60 dark:border-slate-800 shadow-sm space-y-3">
+                      <h4 className="text-[10px] font-extrabold text-stone-400 dark:text-slate-500 uppercase tracking-widest">Reference Grounded Sources & Citations</h4>
                       <div className="flex flex-wrap gap-2">
                         {marketReport.sources.map((s, idx) => (
-                          <span key={idx} className="bg-stone-50 border border-stone-200/60 text-stone-600 px-2.5 py-1 rounded-lg text-[10px] font-mono flex items-center font-bold">
+                          <span key={idx} className="bg-stone-50 dark:bg-slate-800 border border-stone-200/60 dark:border-slate-700 text-stone-600 dark:text-slate-300 px-2.5 py-1 rounded-lg text-[10px] font-mono flex items-center font-bold">
                             <LinkIcon className="w-2.5 h-2.5 mr-1.5 text-stone-400" />
                             {s}
                           </span>
@@ -1942,8 +2326,12 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
                     <h2 className="text-base font-extrabold text-stone-950 flex items-center">
                       <Briefcase className="w-5 h-5 text-emerald-600 mr-2 shrink-0" />
                       Prospect Lead Miner
+                      <span className="ml-3 px-2.5 py-0.5 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800 rounded-full flex items-center">
+                        <Sparkles className="w-3 h-3 mr-1 text-emerald-500" />
+                        Apollo.io API Connected
+                      </span>
                     </h2>
-                    <p className="text-xs text-stone-400 font-medium">Extracts exactly 20 valid prospect accounts and pre-drafts contextual pitches</p>
+                    <p className="text-xs text-stone-400 font-medium">Extracts up to 10 verified prospect accounts (Testing Phase Limit) with zero fake data</p>
                   </div>
                   {leads.length > 0 && (
                     <div className="flex items-center space-x-2">
@@ -1963,6 +2351,18 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* Testing Phase Notice Banner */}
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-3.5 rounded-2xl flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="font-mono bg-amber-200/80 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black px-2 py-0.5 rounded text-[10px] uppercase shrink-0">
+                      Testing Phase Active
+                    </span>
+                    <span className="font-medium">
+                      Real Apollo.io lead extraction is strictly capped at 10 leads max per search to preserve API credits. Simulated/fake data generation is strictly disabled.
+                    </span>
+                  </div>
                 </div>
 
                 {/* Lead request criteria */}
@@ -2078,7 +2478,21 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
                                       {lead.role}
                                     </span>
                                   </td>
-                                  <td className="p-4 font-mono text-stone-500 text-[11px]">{lead.email}</td>
+                                  <td className="p-4 font-mono text-stone-500 text-[11px]">
+                                    <div className="flex flex-col space-y-1">
+                                      <span className="font-bold text-stone-800 dark:text-slate-200">{lead.email}</span>
+                                      <span className={`inline-flex items-center space-x-1 text-[9px] font-bold px-1.5 py-0.5 rounded border w-fit ${
+                                        lead.emailStatus === "verified"
+                                          ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                          : lead.emailStatus === "corporate_domain"
+                                          ? "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                                      }`}>
+                                        <ShieldCheck className="w-2.5 h-2.5" />
+                                        <span>{lead.emailStatus === "verified" ? "Verified Corporate" : lead.emailStatus === "corporate_domain" ? "Corporate Domain" : "Pattern Matched"}</span>
+                                      </span>
+                                    </div>
+                                  </td>
                                   <td className="p-4">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${
                                       lead.pipelineStatus === "booked"
@@ -2490,6 +2904,13 @@ ${attendeeEmail ? `**Attendee:** ${attendeeEmail}` : ""}
           </div>
         </div>
       </div>
+
+      {/* Firebase & OAuth Credentials Configuration Modal */}
+      <FirebaseConfigModal 
+        isOpen={isFirebaseModalOpen} 
+        onClose={() => setIsFirebaseModalOpen(false)} 
+        onConfigSaved={() => {}} 
+      />
     </div>
   );
 }

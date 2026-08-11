@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "motion/react";
+import aiAvatarImg from "../assets/images/ai_cofounder_avatar_1786184439366.jpg";
 
 interface AvatarProps {
   isSpeaking: boolean;
@@ -8,10 +9,11 @@ interface AvatarProps {
 }
 
 export default function Avatar({ isSpeaking, isListening, isThinking }: AvatarProps) {
+  const [useRealisticMode, setUseRealisticMode] = useState(false);
   const wavesCount = 12;
 
   return (
-    <div className="relative w-[280px] sm:w-[320px] h-[280px] sm:h-[320px] mx-auto flex flex-col items-center justify-center select-none">
+    <div className="relative w-[280px] sm:w-[320px] h-[300px] sm:h-[340px] mx-auto flex flex-col items-center justify-center select-none">
       
       {/* Background Aura / Deep Ambient Glow */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -108,150 +110,170 @@ export default function Avatar({ isSpeaking, isListening, isThinking }: AvatarPr
             isSpeaking ? "bg-emerald-500/10" : isListening ? "bg-teal-500/10" : "bg-transparent"
           }`} />
 
-          {/* High Fidelity Human Vector Graphics */}
-          <svg className="w-48 h-48 z-10" viewBox="0 0 200 200" fill="none">
-            <defs>
-              {/* Shading Gradients */}
-              <radialGradient id="faceGrad" cx="50%" cy="40%" r="60%" fx="30%" fy="30%">
-                <stop offset="0%" stopColor="#ffe6d5" />
-                <stop offset="60%" stopColor="#fcd3b6" />
-                <stop offset="100%" stopColor="#e29b6f" />
-              </radialGradient>
-              
-              <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#7c2d12" /> {/* Warm Brown */}
-                <stop offset="45%" stopColor="#9a3412" />
-                <stop offset="100%" stopColor="#c2410c" />
-              </linearGradient>
-
-              <linearGradient id="hairHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#f97316" /> {/* Warm Orange Highlight */}
-                <stop offset="100%" stopColor="#9a3412" />
-              </linearGradient>
-
-              <linearGradient id="suitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#475569" /> {/* Softer Grey Suit */}
-                <stop offset="100%" stopColor="#334155" />
-              </linearGradient>
-
-              <linearGradient id="collarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#334155" />
-                <stop offset="100%" stopColor="#1e293b" />
-              </linearGradient>
-
-              <linearGradient id="irisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#14b8a6" />
-                <stop offset="100%" stopColor="#059669" />
-              </linearGradient>
-
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-            </defs>
-
-            {/* 1. Shoulders and Blazer / Tech Suit */}
-            <g id="torso">
-              <path
-                d="M25,180 C25,145 60,125 100,125 C140,125 175,145 175,180"
-                fill="url(#suitGrad)"
-                stroke="#475569"
-                strokeWidth="2"
+          {useRealisticMode ? (
+            /* Photorealistic Executive 3D AI Co-Founder */
+            <div className="relative w-full h-full">
+              <img
+                src={aiAvatarImg}
+                alt="AI Executive Co-Founder"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover rounded-full filter contrast-[1.05]"
               />
-              <path
-                d="M75,125 L100,155 L125,125 Z"
-                fill="#0f172a"
-                stroke={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : isThinking ? "#6366f1" : "#1e293b"}
-                strokeWidth="2.5"
-                className="transition-colors duration-500"
-              />
-              <circle cx="50" cy="148" r="4" fill={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : "#475569"} filter="url(#glow)" />
-              <line x1="56" y1="148" x2="68" y2="148" stroke="#334155" strokeWidth="1.5" />
-            </g>
+              {/* Holographic glowing scanner line overlay when speaking or thinking */}
+              {(isSpeaking || isThinking) && (
+                <motion.div
+                  animate={{ y: ["0%", "100%", "0%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] opacity-75 pointer-events-none"
+                />
+              )}
+            </div>
+          ) : (
+            /* High Fidelity Human Vector Graphics */
+            <svg className="w-48 h-48 z-10" viewBox="0 0 200 200" fill="none">
+              <defs>
+                {/* Shading Gradients */}
+                <radialGradient id="faceGrad" cx="50%" cy="40%" r="60%" fx="30%" fy="30%">
+                  <stop offset="0%" stopColor="#ffe6d5" />
+                  <stop offset="60%" stopColor="#fcd3b6" />
+                  <stop offset="100%" stopColor="#e29b6f" />
+                </radialGradient>
+                
+                <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#7c2d12" /> {/* Warm Brown */}
+                  <stop offset="45%" stopColor="#9a3412" />
+                  <stop offset="100%" stopColor="#c2410c" />
+                </linearGradient>
 
-            {/* 2. Neck */}
-            <g id="neck">
-              <path
-                d="M85,95 L85,128 C85,128 92,135 100,135 C108,135 115,128 115,128 L115,95 Z"
-                fill="#f7be97"
-                stroke="#e29b6f"
-                strokeWidth="1.5"
-              />
-              <path d="M85,95 C92,106 108,106 115,95 C115,95 108,100 100,100 C92,100 85,95 85,95 Z" fill="#e29b6f" opacity="0.4" />
-            </g>
+                <linearGradient id="hairHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#f97316" /> {/* Warm Orange Highlight */}
+                  <stop offset="100%" stopColor="#9a3412" />
+                </linearGradient>
 
-            {/* 3. Hair Back/Base */}
-            <path d="M55,75 C55,40 145,40 145,75 L145,98 L55,98 Z" fill="url(#hairGrad)" />
+                <linearGradient id="suitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#475569" /> {/* Softer Grey Suit */}
+                  <stop offset="100%" stopColor="#334155" />
+                </linearGradient>
 
-            {/* 4. Head and Face structure */}
-            <g id="head">
-              <path
-                d="M60,65 C60,35 140,35 140,65 C140,95 135,115 100,115 C65,115 60,95 60,65 Z"
-                fill="url(#faceGrad)"
-                stroke="#df9062"
-                strokeWidth="1"
-              />
-              <ellipse cx="76" cy="88" rx="8" ry="4" fill="#fc8181" opacity="0.35" />
-              <ellipse cx="124" cy="88" rx="8" ry="4" fill="#fc8181" opacity="0.35" />
+                <linearGradient id="collarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#334155" />
+                  <stop offset="100%" stopColor="#1e293b" />
+                </linearGradient>
 
-              <g id="eyes">
-                <ellipse cx="82" cy="74" rx="10" ry="7" fill="#ffffff" stroke="#e29b6f" strokeWidth="1" />
-                <ellipse cx="118" cy="74" rx="10" ry="7" fill="#ffffff" stroke="#e29b6f" strokeWidth="1" />
+                <linearGradient id="irisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#14b8a6" />
+                  <stop offset="100%" stopColor="#059669" />
+                </linearGradient>
 
-                <motion.g animate={isThinking ? { x: [0, -1.5, 1.5, 0] } : {}} transition={{ duration: 3, repeat: Infinity }}>
-                  <circle cx="82" cy="74" r="5" fill="url(#irisGrad)" />
-                  <circle cx="82" cy="74" r="2.5" fill="#0f172a" />
-                  <circle cx="80" cy="72" r="1.2" fill="#ffffff" />
-                </motion.g>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
 
-                <motion.g animate={isThinking ? { x: [0, -1.5, 1.5, 0] } : {}} transition={{ duration: 3, repeat: Infinity }}>
-                  <circle cx="118" cy="74" r="5" fill="url(#irisGrad)" />
-                  <circle cx="118" cy="74" r="2.5" fill="#0f172a" />
-                  <circle cx="116" cy="72" r="1.2" fill="#ffffff" />
-                </motion.g>
-
-                <motion.path d="M71,71 Q82,65 93,71" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                <motion.path d="M107,71 Q118,65 129,71" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-
-                <motion.rect x="70" y="65" width="15" height="16" fill="url(#faceGrad)" animate={{ scaleY: [0, 0, 1, 0, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.94, 0.98, 1] }} style={{ transformOrigin: "top", display: "block" }} />
-                <motion.rect x="115" y="65" width="15" height="16" fill="url(#faceGrad)" animate={{ scaleY: [0, 0, 1, 0, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.94, 0.98, 1] }} style={{ transformOrigin: "top", display: "block" }} />
+              {/* 1. Shoulders and Blazer / Tech Suit */}
+              <g id="torso">
+                <path
+                  d="M25,180 C25,145 60,125 100,125 C140,125 175,145 175,180"
+                  fill="url(#suitGrad)"
+                  stroke="#475569"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M75,125 L100,155 L125,125 Z"
+                  fill="#0f172a"
+                  stroke={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : isThinking ? "#6366f1" : "#1e293b"}
+                  strokeWidth="2.5"
+                  className="transition-colors duration-500"
+                />
+                <circle cx="50" cy="148" r="4" fill={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : "#475569"} filter="url(#glow)" />
+                <line x1="56" y1="148" x2="68" y2="148" stroke="#334155" strokeWidth="1.5" />
               </g>
 
-              <g id="eyebrows">
-                <motion.path d="M72,63 Q82,56 90,62" stroke="#1e1b4b" strokeWidth="2.5" strokeLinecap="round" fill="none" animate={{ y: isListening ? -2.5 : isThinking ? -1 : 0, rotate: isThinking ? -3 : 0 }} />
-                <motion.path d="M110,62 Q118,56 128,63" stroke="#1e1b4b" strokeWidth="2.5" strokeLinecap="round" fill="none" animate={{ y: isListening ? -2.5 : isThinking ? -1 : 0, rotate: isThinking ? 3 : 0 }} />
+              {/* 2. Neck */}
+              <g id="neck">
+                <path
+                  d="M85,95 L85,128 C85,128 92,135 100,135 C108,135 115,128 115,128 L115,95 Z"
+                  fill="#f7be97"
+                  stroke="#e29b6f"
+                  strokeWidth="1.5"
+                />
+                <path d="M85,95 C92,106 108,106 115,95 C115,95 108,100 100,100 C92,100 85,95 85,95 Z" fill="#e29b6f" opacity="0.4" />
               </g>
 
-              <path d="M100,78 C100,78 97,83 100,85 C103,83 100,78 100,78" fill="#e29b6f" opacity="0.6" />
+              {/* 3. Hair Back/Base */}
+              <path d="M55,75 C55,40 145,40 145,75 L145,98 L55,98 Z" fill="url(#hairGrad)" />
 
-              <g id="mouth">
-                {isSpeaking ? (
-                  <motion.path d="M90,94 Q100,99 110,94" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" fill="#be123c" animate={{ d: ["M92,94 Q100,98 108,94 Q100,108 92,94", "M93,95 Q100,103 107,95 Q100,96 93,95", "M91,93 Q100,106 109,93 Q100,100 91,93", "M92,95 Q100,97 108,95 Q100,102 92,95"] }} transition={{ duration: 0.65, repeat: Infinity, ease: "easeInOut" }} />
-                ) : isListening ? (
-                  <path d="M92,95 Q100,100 108,95" stroke="#0f172a" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                ) : (
-                  <path d="M90,93 Q100,104 110,93" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" fill="none" />
-                )}
+              {/* 4. Head and Face structure */}
+              <g id="head">
+                <path
+                  d="M60,65 C60,35 140,35 140,65 C140,95 135,115 100,115 C65,115 60,95 60,65 Z"
+                  fill="url(#faceGrad)"
+                  stroke="#df9062"
+                  strokeWidth="1"
+                />
+                <ellipse cx="76" cy="88" rx="8" ry="4" fill="#fc8181" opacity="0.35" />
+                <ellipse cx="124" cy="88" rx="8" ry="4" fill="#fc8181" opacity="0.35" />
+
+                <g id="eyes">
+                  <ellipse cx="82" cy="74" rx="10" ry="7" fill="#ffffff" stroke="#e29b6f" strokeWidth="1" />
+                  <ellipse cx="118" cy="74" rx="10" ry="7" fill="#ffffff" stroke="#e29b6f" strokeWidth="1" />
+
+                  <motion.g animate={isThinking ? { x: [0, -1.5, 1.5, 0] } : {}} transition={{ duration: 3, repeat: Infinity }}>
+                    <circle cx="82" cy="74" r="5" fill="url(#irisGrad)" />
+                    <circle cx="82" cy="74" r="2.5" fill="#0f172a" />
+                    <circle cx="80" cy="72" r="1.2" fill="#ffffff" />
+                  </motion.g>
+
+                  <motion.g animate={isThinking ? { x: [0, -1.5, 1.5, 0] } : {}} transition={{ duration: 3, repeat: Infinity }}>
+                    <circle cx="118" cy="74" r="5" fill="url(#irisGrad)" />
+                    <circle cx="118" cy="74" r="2.5" fill="#0f172a" />
+                    <circle cx="116" cy="72" r="1.2" fill="#ffffff" />
+                  </motion.g>
+
+                  <motion.path d="M71,71 Q82,65 93,71" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                  <motion.path d="M107,71 Q118,65 129,71" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+
+                  <motion.rect x="70" y="65" width="15" height="16" fill="url(#faceGrad)" animate={{ scaleY: [0, 0, 1, 0, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.94, 0.98, 1] }} style={{ transformOrigin: "top", display: "block" }} />
+                  <motion.rect x="115" y="65" width="15" height="16" fill="url(#faceGrad)" animate={{ scaleY: [0, 0, 1, 0, 0] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.9, 0.94, 0.98, 1] }} style={{ transformOrigin: "top", display: "block" }} />
+                </g>
+
+                <g id="eyebrows">
+                  <motion.path d="M72,63 Q82,56 90,62" stroke="#1e1b4b" strokeWidth="2.5" strokeLinecap="round" fill="none" animate={{ y: isListening ? -2.5 : isThinking ? -1 : 0, rotate: isThinking ? -3 : 0 }} />
+                  <motion.path d="M110,62 Q118,56 128,63" stroke="#1e1b4b" strokeWidth="2.5" strokeLinecap="round" fill="none" animate={{ y: isThinking ? 3 : 0 }} />
+                </g>
+
+                <path d="M100,78 C100,78 97,83 100,85 C103,83 100,78 100,78" fill="#e29b6f" opacity="0.6" />
+
+                <g id="mouth">
+                  {isSpeaking ? (
+                    <motion.path d="M90,94 Q100,99 110,94" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" fill="#be123c" animate={{ d: ["M92,94 Q100,98 108,94 Q100,108 92,94", "M93,95 Q100,103 107,95 Q100,96 93,95", "M91,93 Q100,106 109,93 Q100,100 91,93", "M92,95 Q100,97 108,95 Q100,102 92,95"] }} transition={{ duration: 0.65, repeat: Infinity, ease: "easeInOut" }} />
+                  ) : isListening ? (
+                    <path d="M92,95 Q100,100 108,95" stroke="#0f172a" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                  ) : (
+                    <path d="M90,93 Q100,104 110,93" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" fill="none" />
+                  )}
+                </g>
               </g>
-            </g>
 
-            <g id="hair-front">
-              <path d="M56,65 C50,42 75,25 100,32 C125,25 150,42 144,65 C132,48 118,50 100,50 C82,50 68,48 56,65 Z" fill="url(#hairGrad)" />
-              <path d="M68,36 C85,24 115,24 132,36" stroke="url(#hairHighlight)" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-              <path d="M80,30 C93,24 107,24 120,30" stroke="#10b981" strokeWidth="1" strokeLinecap="round" opacity="0.3" />
-            </g>
+              <g id="hair-front">
+                <path d="M56,65 C50,42 75,25 100,32 C125,25 150,42 144,65 C132,48 118,50 100,50 C82,50 68,48 56,65 Z" fill="url(#hairGrad)" />
+                <path d="M68,36 C85,24 115,24 132,36" stroke="url(#hairHighlight)" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+                <path d="M80,30 C93,24 107,24 120,30" stroke="#10b981" strokeWidth="1" strokeLinecap="round" opacity="0.3" />
+              </g>
 
-            <g id="headset">
-              <rect x="52" y="55" width="10" height="25" rx="5" fill="#1e293b" stroke={isListening ? "#14b8a6" : isSpeaking ? "#10b981" : "#475569"} strokeWidth="2" />
-              <circle cx="57" cy="67" r="2.5" fill={isListening ? "#14b8a6" : isSpeaking ? "#10b981" : "#64748b"} filter="url(#glow)" />
-              <path d="M57,55 C57,25 143,25 143,55" fill="none" stroke="#334155" strokeWidth="2.5" />
-              <motion.path d="M57,75 Q70,95 86,95" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
-              <motion.circle cx="86" cy="95" r="3" fill={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : "#475569"} filter="url(#glow)" animate={isSpeaking || isListening ? { scale: [1, 1.4, 1] } : {}} transition={{ duration: 1, repeat: Infinity }} />
-            </g>
-          </svg>
+              <g id="headset">
+                <rect x="52" y="55" width="10" height="25" rx="5" fill="#1e293b" stroke={isListening ? "#14b8a6" : isSpeaking ? "#10b981" : "#475569"} strokeWidth="2" />
+                <circle cx="57" cy="67" r="2.5" fill={isListening ? "#14b8a6" : isSpeaking ? "#10b981" : "#64748b"} filter="url(#glow)" />
+                <path d="M57,55 C57,25 143,25 143,55" fill="none" stroke="#334155" strokeWidth="2.5" />
+                <motion.path d="M57,75 Q70,95 86,95" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
+                <motion.circle cx="86" cy="95" r="3" fill={isSpeaking ? "#10b981" : isListening ? "#14b8a6" : "#475569"} filter="url(#glow)" animate={isSpeaking || isListening ? { scale: [1, 1.4, 1] } : {}} transition={{ duration: 1, repeat: Infinity }} />
+              </g>
+            </svg>
+          )}
 
           {/* Core State-Border Lighting (Outer soft rings inside card) */}
           {isListening && (
@@ -280,8 +302,10 @@ export default function Avatar({ isSpeaking, isListening, isThinking }: AvatarPr
         </motion.div>
       </div>
 
+
+
       {/* Futuristic Soundwave Audio Frequency Bars beneath the avatar */}
-      <div className="mt-5 flex items-center justify-center space-x-1 h-8 px-4 w-full max-w-xs bg-slate-900/80 rounded-full border border-slate-700/40 backdrop-blur-sm shadow-inner">
+      <div className="mt-3 flex items-center justify-center space-x-1 h-7 px-4 w-full max-w-xs bg-slate-900/80 rounded-full border border-slate-700/40 backdrop-blur-sm shadow-inner">
         {Array.from({ length: wavesCount }).map((_, idx) => {
           // generate random offsets for dynamic visualizer effect
           const randomDur = 0.4 + Math.random() * 0.5;
@@ -292,7 +316,7 @@ export default function Avatar({ isSpeaking, isListening, isThinking }: AvatarPr
               key={idx}
               animate={
                 isSpeaking
-                  ? { height: isCenter ? [6, 24, 6] : [4, 16, 4] }
+                  ? { height: isCenter ? [6, 22, 6] : [4, 14, 4] }
                   : isListening
                   ? { height: [4, 12, 4] }
                   : isThinking
@@ -319,22 +343,22 @@ export default function Avatar({ isSpeaking, isListening, isThinking }: AvatarPr
       </div>
 
       {/* Interactive Subtitle / Communication Logs */}
-      <div className="mt-4 text-center min-h-[24px]">
+      <div className="mt-2 text-center min-h-[22px]">
         {isListening ? (
-          <span className="text-xs font-bold text-teal-500 tracking-wider uppercase animate-pulse">
+          <span className="text-[11px] font-extrabold text-teal-400 tracking-wider uppercase animate-pulse">
             🎤 MICROPHONE ACTIVE • SPEAK NOW
           </span>
         ) : isThinking ? (
-          <span className="text-xs font-bold text-indigo-400 tracking-wider uppercase animate-pulse">
+          <span className="text-[11px] font-extrabold text-indigo-400 tracking-wider uppercase animate-pulse">
             ⚡ PARTNER THINKING...
           </span>
         ) : isSpeaking ? (
-          <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase animate-pulse">
+          <span className="text-[11px] font-extrabold text-emerald-400 tracking-wider uppercase animate-pulse">
             🔊 SPEAKING TO YOU...
           </span>
         ) : (
-          <span className="text-xs font-medium text-slate-500">
-            Microphone always-on mode active. Speak anytime!
+          <span className="text-[11px] font-semibold text-slate-400">
+            Microphone active. Speak anytime!
           </span>
         )}
       </div>

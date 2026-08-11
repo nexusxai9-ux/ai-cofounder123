@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
   getAuth, 
   signInWithPopup, 
@@ -7,20 +7,50 @@ import {
   onAuthStateChanged, 
   User 
 } from "firebase/auth";
-import firebaseConfig from "../firebase-applet-config.json";
+import defaultConfig from "../firebase-applet-config.json";
+
+// Helper to resolve active Firebase config
+export function getActiveFirebaseConfig() {
+  if (import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+    return {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+      appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
+    };
+  }
+  try {
+    const saved = localStorage.getItem("custom_firebase_config");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.apiKey && parsed.projectId) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not parse custom firebase config from localStorage:", e);
+  }
+  return defaultConfig;
+}
 
 // Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+const activeConfig = getActiveFirebaseConfig();
+const app = getApps().length > 0 ? getApp() : initializeApp(activeConfig);
 export const auth = getAuth(app);
 
-// Setup Google Auth Provider for clean standard authentication (profile/email)
+// Setup Google Auth Provider (uses basic profile and email for clean sign-in)
 export const provider = new GoogleAuthProvider();
-// Note: Standard profile & email scopes do not trigger restricted scope verification blocks.
+provider.addScope("profile");
+provider.addScope("email");
 
-// Incremental provider for optional Workspace APIs if requested
-export const workspaceScopeProvider = new GoogleAuthProvider();
-workspaceScopeProvider.addScope("https://www.googleapis.com/auth/gmail.send");
-workspaceScopeProvider.addScope("https://www.googleapis.com/auth/calendar.events");
+// Optional extended provider for Gmail/Calendar when needed
+export const extendedProvider = new GoogleAuthProvider();
+extendedProvider.addScope("profile");
+extendedProvider.addScope("email");
+extendedProvider.addScope("https://www.googleapis.com/auth/gmail.send");
+extendedProvider.addScope("https://www.googleapis.com/auth/calendar.events");
 
 // In-memory access token cache
 let cachedAccessToken: string | null = localStorage.getItem("google_access_token");
@@ -56,43 +86,16 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      console.warn("No Google API Access Token returned in standard Firebase Auth result.");
+      console.warn("No Google API Access Token returned in Firebase Auth result.");
       cachedAccessToken = "";
     } else {
       cachedAccessToken = credential.accessToken;
       localStorage.setItem("google_access_token", cachedAccessToken);
     }
     return { user: result.user, accessToken: cachedAccessToken || "" };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Sign-in with Google failed:", error);
     throw error;
-  } finally {
-    isSigningIn = false;
-  }
-};
-
-// Request optional Gmail & Calendar Workspace Permissions
-export const requestWorkspacePermissions = async (): Promise<{ success: boolean; accessToken?: string; error?: string }> => {
-  try {
-    isSigningIn = true;
-    const result = await signInWithPopup(auth, workspaceScopeProvider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
-      cachedAccessToken = credential.accessToken;
-      localStorage.setItem("google_access_token", cachedAccessToken);
-      return { success: true, accessToken: cachedAccessToken };
-    }
-    return { success: false, error: "No Google API token returned." };
-  } catch (error: any) {
-    console.warn("Workspace API permissions request notice:", error);
-    const errMsg = error?.message || String(error);
-    if (errMsg.includes("unverified") || errMsg.includes("verification") || error?.code === "auth/popup-closed-by-user") {
-      return { 
-        success: false, 
-        error: "Google Workspace API access requires OAuth App Verification for sensitive Gmail/Calendar scopes on custom domains. Standard workspace sandbox mode is active." 
-      };
-    }
-    return { success: false, error: errMsg };
   } finally {
     isSigningIn = false;
   }
@@ -119,3 +122,4 @@ export const setAccessToken = (token: string) => {
   cachedAccessToken = token;
   localStorage.setItem("google_access_token", token);
 };
+
