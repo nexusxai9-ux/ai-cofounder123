@@ -51,8 +51,8 @@ async function generateContentWithModelFallback(
     config?: any;
   }
 ) {
-  // Try gemini-flash-latest first (highest quota/limit, extremely stable), then gemini-3.1-flash-lite, then gemini-3.6-flash
-  const modelsToTry = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-3.6-flash"];
+  // Try gemini-2.5-flash first (recommended), then gemini-2.0-flash, then gemini-1.5-flash
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
