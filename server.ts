@@ -13,23 +13,14 @@ const PORT = 3000;
 app.use(express.json());
 
 // Helper to get Google GenAI client lazily
-let aiClient: GoogleGenAI | null = null;
 function getAiClient() {
-  if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is required");
-    }
-    aiClient = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is required. Please add GEMINI_API_KEY in Vercel Settings -> Environment Variables.");
   }
-  return aiClient;
+  return new GoogleGenAI({
+    apiKey,
+  });
 }
 
 // Ensure clean JSON output from Gemini (strips markdown blocks if any)
@@ -1431,6 +1422,11 @@ app.post("/api/calendar/schedule", async (req, res) => {
 
 // Vite Middleware & SPA serving
 async function startServer() {
+  if (process.env.VERCEL) {
+    // Vercel serverless environment - routing and static files are handled by vercel.json
+    return;
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
