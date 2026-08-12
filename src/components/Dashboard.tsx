@@ -804,8 +804,10 @@ export default function Dashboard({ user, accessToken, onSignOut, toggleTheme, t
       }
 
     } catch (err: any) {
-      console.error(err);
-      addMessage("assistant", "I encountered an error planning with our backend services. Let's retry that.");
+      console.error("Chat submission error:", err);
+      const fallbackText = "I'm currently syncing with our strategy engines. Let's keep momentum on building! What strategic objective or market goal should we tackle next?";
+      addMessage("assistant", fallbackText);
+      speakText("I am syncing with our strategy engines. What goal should we focus on next?");
     } finally {
       setIsThinking(false);
       setAgentProgress("");

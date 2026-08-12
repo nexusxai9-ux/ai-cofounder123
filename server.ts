@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
 
@@ -16,7 +16,8 @@ app.use(express.json());
 function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is required. Please add GEMINI_API_KEY in Vercel Settings -> Environment Variables.");
+    console.warn("GEMINI_API_KEY is not set. Gemini API calls will fallback to offline/synthetic strategists.");
+    return null;
   }
   return new GoogleGenAI({
     apiKey,
@@ -42,8 +43,11 @@ async function generateContentWithModelFallback(
     config?: any;
   }
 ) {
-  // Try gemini-2.5-flash first (recommended), then gemini-2.0-flash, then gemini-1.5-flash
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  if (!ai) {
+    throw new Error("AI client not initialized");
+  }
+  // Try gemini-2.0-flash first, then gemini-2.0-flash-lite, then gemini-1.5-flash
+  const modelsToTry = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
@@ -57,11 +61,10 @@ async function generateContentWithModelFallback(
       return response;
     } catch (error: any) {
       lastError = error;
-      // Quiet down logs to prevent triggering automated checkers
-      console.log(`[AI] Model ${model} is currently busy. Trying alternative...`);
+      console.warn(`[AI] Model ${model} unavailable:`, error?.message || error);
     }
   }
-  throw new Error("The AI services are currently busy. Please wait a moment and try again.");
+  throw lastError || new Error("The AI services are currently busy. Please wait a moment and try again.");
 }
 
 // ==========================================
@@ -687,9 +690,9 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "run_market_research",
             description: "Run market research agent to scrape live web data and generate a comprehensive market report for a specific market or industry",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                marketQuery: { type: "STRING", description: "The industry or market topic to research" }
+                marketQuery: { type: Type.STRING, description: "The industry or market topic to research" }
               },
               required: ["marketQuery"]
             }
@@ -698,9 +701,9 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "run_competitor_analysis",
             description: "Run competitor analysis agent to identify and analyze key active competitors, pricing, strengths and differentiation",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                conceptQuery: { type: "STRING", description: "Startup concept or product description to analyze competitors for" }
+                conceptQuery: { type: Type.STRING, description: "Startup concept or product description to analyze competitors for" }
               },
               required: ["conceptQuery"]
             }
@@ -709,10 +712,10 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "find_leads",
             description: "Run client lead finder agent to extract 20 real prospect accounts with verified names, roles, websites and email addresses",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                industry: { type: "STRING", description: "Target industry for leads" },
-                targetPersona: { type: "STRING", description: "Target customer persona or job title" }
+                industry: { type: Type.STRING, description: "Target industry for leads" },
+                targetPersona: { type: Type.STRING, description: "Target customer persona or job title" }
               },
               required: ["industry"]
             }
@@ -721,11 +724,11 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "send_email",
             description: "Send a real email message to a recipient using the user's connected Google Gmail account",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                to: { type: "STRING", description: "Recipient email address" },
-                subject: { type: "STRING", description: "Email subject line" },
-                body: { type: "STRING", description: "Email message body content" }
+                to: { type: Type.STRING, description: "Recipient email address" },
+                subject: { type: Type.STRING, description: "Email subject line" },
+                body: { type: Type.STRING, description: "Email message body content" }
               },
               required: ["to", "subject", "body"]
             }
@@ -734,13 +737,13 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "schedule_calendar",
             description: "Schedule a meeting, event, or reminder on the user's connected Google Calendar",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                summary: { type: "STRING", description: "Title or summary of the calendar event" },
-                description: { type: "STRING", description: "Details or description for the calendar event" },
-                startDateTime: { type: "STRING", description: "Start ISO 8601 string in user's local time, e.g. 2026-08-08T15:00:00" },
-                endDateTime: { type: "STRING", description: "End ISO 8601 string in user's local time, e.g. 2026-08-08T16:00:00" },
-                attendeeEmail: { type: "STRING", description: "Optional attendee email address" }
+                summary: { type: Type.STRING, description: "Title or summary of the calendar event" },
+                description: { type: Type.STRING, description: "Details or description for the calendar event" },
+                startDateTime: { type: Type.STRING, description: "Start ISO 8601 string in user's local time, e.g. 2026-08-08T15:00:00" },
+                endDateTime: { type: Type.STRING, description: "End ISO 8601 string in user's local time, e.g. 2026-08-08T16:00:00" },
+                attendeeEmail: { type: Type.STRING, description: "Optional attendee email address" }
               },
               required: ["summary", "startDateTime", "endDateTime"]
             }
@@ -749,9 +752,9 @@ When calling 'send_email' without a specific recipient email provided in text, o
             name: "add_task",
             description: "Add a new task or to-do item to the startup execution task list",
             parameters: {
-              type: "OBJECT",
+              type: Type.OBJECT,
               properties: {
-                taskText: { type: "STRING", description: "Task title or description" }
+                taskText: { type: Type.STRING, description: "Task title or description" }
               },
               required: ["taskText"]
             }
